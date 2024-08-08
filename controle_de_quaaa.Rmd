@@ -1,0 +1,246 @@
+---
+title: "Controle estatístico de qualidade"
+author: "Amauri dos santos lima neto"
+date: "2023-09-12"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+# Trabalho de Controle Estatístico de Qualidade
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(qcc)
+library(plotly)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Sobre os dados
+
+```{r include=FALSE}
+p1 <- c(83.0, 88.6, 85.7, 80.8, 83.4, 75.3, 74.5, 79.2, 80.5, 75.7, 
+        80.0, 80.6, 82.7, 79.2, 85.5, 78.8, 82.1, 84.5, 79.0, 84.5,68.9, 69.8, 78.5, 76.9, 93.6, 65.5, 78.1, 74.9,
+             78.1, 78.7, 85.0, 86.4, 78.5, 68.8, 83.0)
+
+p2 <- c(81.2, 78.3, 75.8, 74.4, 78.4, 79.9, 78.0, 84.4, 86.2, 75.2,
+        81.5, 81.8, 81.3, 74.9, 82.1, 79.6, 78.2, 76.9, 77.8, 73.1,81.5, 68.6, 85.2, 86.1, 81.6, 86.8, 65.7, 72.6,
+             77.1, 85.4, 60.2, 79.2, 99.0, 62.0, 83.7)
+
+p3 <- c(78.7, 78.8, 84.3, 82.5, 82.6, 87.3, 80.8, 81.5, 76.2, 71.1,
+        78.4, 79.3, 79.1, 78.6, 82.8, 80.2, 75.5, 83.5, 81.2, 78.6,78.2, 80.4, 78.4, 86.9, 87.8, 72.4, 83.7, 81.6,
+             67.0, 77.7, 68.5, 79.8, 78.3, 82.0, 73.1)
+
+p4 <- c(75.7, 71.0, 75.2, 74.1, 78.2, 89.7, 73.4, 86.0, 64.1, 82.1,
+        73.8, 73.8, 82.0, 77.7, 73.4, 79.1, 78.2, 81.2, 84.4, 78.7,80.8, 84.3, 80.3, 94.4, 79.6, 82.6, 93.7, 87.2,
+             75.7, 90.7, 71.1, 86.0, 71.4, 77.5, 82.2)
+
+p5 <- c(77.0, 84.2, 81.0, 75.7, 78.9, 81.8, 79.7, 74.5, 80.2, 74.3,
+        78.1, 81.7, 79.5, 75.3, 71.7, 80.8, 82.1, 79.2, 81.6, 80.6,81.5, 83.9, 81.7, 83.9, 71.0, 71.4, 93.4, 72.7,
+             76.8, 76.7, 82.4, 75.4, 81.8, 76.1, 95.3)
+
+
+dados <- data.frame(p1,p2,p3,p4,p5)
+```
+
+Os dados a seguir contém informações de 35 amostras referente a 5 peças manufaturadas por um processo de moldagem por injeção que foram submetidas a um teste de força de compressão (em psi).
+
+```{r}
+summary(dados)
+
+```
+
+### Obtenção dos limites (inferior e superior)
+
+```{r, include=TRUE}
+ dados[,1:5] %>%rowMeans()-> dados$medias
+ apply(dados[,1:5] , MARGIN = 1, sd)  -> dados$desvios
+
+a3 <- 1.427
+b4 <- 2.089
+b3 <- 0
+lscs <- b4*mean(dados$desvios[1:20])
+lics <- b3*mean(dados$desvios[1:20])
+lscx <- mean(dados$media[1:20])+ a3*mean(dados$desvios[1:20])
+licx <- mean(dados$media[1:20])- a3*mean(dados$desvios[1:20])
+
+df<-data.frame(
+  Limite_inferior =c(lics,licx),
+  Limite_superior =c(lscs,lscx)
+)
+rownames(df)<- c("Desvios","médias")
+df
+```
+
+Os limites acima foram calculados utilizando as médias e os desvios por amostra dos dados acima, A3, B4 e B3 são valores de correção que foram extraídos da tabela do livro do MONTGOMERY.
+
+## Análise descritiva das médias
+
+O histograma a seguir representa as médias e os limites superior e inferior.
+
+Nesse caso podemos observar que o processo está com "folga", pois existem intervalos razoavelmente bons entre as médias e os limites.
+
+```{r, echo=FALSE}
+
+ggplot(data = dados[1:20,],aes(x=medias))+
+  geom_histogram(color='lightblue',fill= 'lightblue',)+
+  geom_vline(xintercept = licx,linetype='dashed',col= 'darkred')+
+  geom_vline(xintercept = lscx,linetype='dashed',col= 'darkred')+
+  theme_light()+
+  labs(title='histograma das médias',y= 'frequências', x= 'médias')
+
+```
+
+Observando o gráfico de dispersão percebemos que aparentemente não há evidências de tendências entre as médias e as amostras. Ou seja, os dados se comportam aleatoriamente.
+
+```{r include=F}
+ggplot(data = dados[1:20,],aes(x=medias,y= seq_along(medias)))+
+  geom_point(shape=21,size= 3,color= 'blue',fill='lightblue')+
+  theme_light()+
+  labs(title = 'gráfico de dispersão das médias',x='médias', y= 'amostra')
+```
+
+## Gráficos de Controle
+
+O gráfico a seguir representa 20 amostras de tamanho 5 e seus respectivos limites.
+
+```{r}
+ fg1 <- ggplot(data = dados[1:20,],aes(x=seq_along(medias),y=medias))+
+  geom_line()+
+  geom_point()+
+  geom_hline(yintercept = lscx,linetype= 'dashed', color= 'red')+
+  geom_hline(yintercept = licx,linetype= 'dashed', color= 'red')+
+  geom_hline(yintercept = mean(dados$medias),color= 'darkblue')+
+  labs(title = 'Gráfico de controle para as médias', x= 'amostra', y = 'média')+ 
+  theme_light()
+  
+  ggplotly(fg1)
+```
+
+De acordo com o gráfico acima o processo está sob controle.
+
+```{r, echo=FALSE}
+fg2 <- ggplot(data = dados[1:20,],aes(x=seq_along(desvios),y=desvios))+
+  geom_line()+
+  geom_point()+
+  geom_hline(yintercept = lscs,linetype= 'dashed', color= 'red')+
+  geom_hline(yintercept = lics,linetype= 'dashed', color= 'red')+
+  geom_hline(yintercept = mean(dados$desvios[1:20]),color= 'darkblue')+
+  labs(title = 'Gráfico de controle para os desvios', x= 'amostra', y = 'desvios')+ 
+  theme_light()
+  
+   
+
+  
+ ggplotly(fg2)
+ 
+```
+
+O gráfico acima demonstra que o desvio das médias do processo está sob controle, porém, houve uma violação no limite superior.
+
+```{r, echo=FALSE}
+fg3 <- ggplot(data = dados,aes(x=seq_along(medias),y=medias))+
+  geom_line()+
+  geom_point()+
+  geom_hline(yintercept = lscx,linetype= 'dashed', color= 'red')+
+  geom_hline(yintercept = licx,linetype= 'dashed', color= 'red')+
+  geom_hline(yintercept = mean(dados$medias[1:20]),color= 'darkblue')+
+  labs(title = 'Gráfico de controle para as médias com os mesmos limites', x= 'amostra', y = 'média')+ 
+  theme_light()
+  
+  
+   
+
+  
+ ggplotly(fg3)
+```
+
+No Gráfico acima foram inseridas 15 novas amostras, que estão sendo analisadas com os limites anteriores.
+
+```{r, echo=FALSE}
+fg4 <- ggplot(data = dados,aes(x=seq_along(desvios),y=desvios))+
+  geom_line()+
+  geom_point()+
+  geom_hline(yintercept = lscs,linetype= 'dashed', color= 'red')+
+  geom_hline(yintercept = lics,linetype= 'dashed', color= 'red')+
+  geom_hline(yintercept = mean(dados$desvios[1:20]),color= 'darkblue')+
+  labs(title = 'Gráfico de controle para os desvios com os mesmos limites', x= 'amostra', y = 'desvios')+ 
+  theme_light()
+  
+   
+
+  
+ ggplotly(fg4)
+```
+
+De acordo com o novo gráfico de desvios, analisando as 35 amostras, é perceptível que a partir da amostra 22 o processo começa a criar uma tendência crescente, portanto é previsível que o processo saia de controle como visto no gráfico anterior das médias.
+
+### Gráficos atualizados com novos limites
+
+```{r}
+lscs <- b4*mean(dados$desvios)
+lics <- b3*mean(dados$desvios)
+lscx <- mean(dados$media)+ a3*mean(dados$desvios)
+licx <- mean(dados$media)- a3*mean(dados$desvios)
+
+ fg5 <- ggplot(data = dados,aes(x=seq_along(medias),y=medias))+
+  geom_line()+
+  geom_point()+
+  geom_hline(yintercept = lscx,linetype= 'dashed', color= 'red')+
+  geom_hline(yintercept = licx,linetype= 'dashed', color= 'red')+
+  geom_hline(yintercept = mean(dados$medias),color= 'darkblue')+
+  labs(title = 'Gráfico de controle para as médias com os limites recalculados', x= 'amostra', y = 'média')+ 
+  theme_light()
+ 
+ df<-data.frame(
+  Limite_inferior =c(lics,licx),
+  Limite_superior =c(lscs,lscx)
+)
+rownames(df)<- c("Desvios","médias")
+df
+  
+ ggplotly(fg5)
+ 
+ 
+```
+
+Observando o gráfico acima, percebemos que com os novos limites o processo está sob controle, porém, a partir da amostra 22, podemos observar maior variabilidade das médias.
+
+```{r, echo=FALSE}
+fg6 <- ggplot(data = dados,aes(x=seq_along(desvios),y=desvios))+
+  geom_line()+
+  geom_point()+
+  geom_hline(yintercept = lscs,linetype= 'dashed', color= 'red')+
+  geom_hline(yintercept = lics,linetype= 'dashed', color= 'red')+
+  geom_hline(yintercept = mean(dados$desvios),color= 'darkblue')+
+  labs(title = 'Gráfico de controle para os desvios com os limites recalculados', x= 'amostra', y = 'desvios')+ 
+  theme_light()
+  
+   
+
+  
+ ggplotly(fg6)
+```
+
+Observando os novos desvios, mesmo com os limites recalculados, o limite superior foi violado e o gráfico continua apresentando uma tendência crescente.
+
+## Utilizando o pacote QCC
+
+```{r,}
+qcc(dados[1:20,1:5],type = 'xbar',std.dev = 'UWAVE-SD', title= 'grafico de controle da média',xlab= 'amostra',ylab= 'Médias')
+
+
+qcc(dados[1:20,1:5],type = 'xbar',std.dev = 'UWAVE-SD', title= 'grafico de controle da média com os mesmos limites',xlab= 'amostra',ylab= 'Médias',newdata = dados[21:35,1:5])
+
+qcc(dados[1:20,1:5],type = 'S', title= 'grafico de controle dos desvios',xlab= 'amostra',ylab= 'Desvios')
+
+qcc(dados[1:20,1:5],type = 'S', title= 'grafico de controle dos desvios com os mesmos limites',xlab= 'amostra',ylab= 'Desvios',newdata = dados[21:35,1:5])
+
+qcc(dados[,1:5],type = 'xbar',std.dev = 'UWAVE-SD', title= 'grafico de controle da média com os limites recalculados',xlab= 'amostra',ylab= 'Médias')
+
+qcc(dados[,1:5],type = 'S', title= 'grafico de controle dos desvios com os limites recalculados',xlab= 'amostra',ylab= 'Desvios')
+
+
+
+
+```
